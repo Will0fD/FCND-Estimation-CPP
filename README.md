@@ -38,38 +38,8 @@ Scenario `10_MagUpdate` is completed by implementing magnetometer update in the 
 
 ### Implement the GPS update. ###
 
-1. Run scenario `11_GPSUpdate`.  At the moment this scenario is using both an ideal estimator and and ideal IMU.  Even with these ideal elements, watch the position and velocity errors (bottom right). As you see they are drifting away, since GPS update is not yet implemented.
+Scenario `11_GPSUpdate` was satisfied by the implementation of the EKF GPS Update in the function `UpdateFromGPS()` located on `Lines 279-288` of `QuadEstimatorEKF.cpp`. The update allowed the scenario to complete the entire simulation cycle with estimated position error of < 1m.
 
-2. Let's change to using your estimator by setting `Quad.UseIdealEstimator` to 0 in `config/11_GPSUpdate.txt`.  Rerun the scenario to get an idea of how well your estimator work with an ideal IMU.
+### Adding Previous Controller ###
 
-3. Now repeat with realistic IMU by commenting out these lines in `config/11_GPSUpdate.txt`:
-```
-#SimIMU.AccelStd = 0,0,0
-#SimIMU.GyroStd = 0,0,0
-```
-
-4. Tune the process noise model in `QuadEstimatorEKF.txt` to try to approximately capture the error you see with the estimated uncertainty (standard deviation) of the filter.
-
-5. Implement the EKF GPS Update in the function `UpdateFromGPS()`.
-
-6. Now once again re-run the simulation.  Your objective is to complete the entire simulation cycle with estimated position error of < 1m (you’ll see a green box over the bottom graph if you succeed).  You may want to try experimenting with the GPS update parameters to try and get better performance.
-
-***Success criteria:*** *Your objective is to complete the entire simulation cycle with estimated position error of < 1m.*
-
-**Hint: see section 7.3.1 of [Estimation for Quadrotors](https://www.overleaf.com/read/vymfngphcccj) for a refresher on the GPS update.**
-
-At this point, congratulations on having a working estimator!
-
-### Step 6: Adding Your Controller ###
-
-Up to this point, we have been working with a controller that has been relaxed to work with an estimated state instead of a real state.  So now, you will see how well your controller performs and de-tune your controller accordingly.
-
-1. Replace `QuadController.cpp` with the controller you wrote in the last project.
-
-2. Replace `QuadControlParams.txt` with the control parameters you came up with in the last project.
-
-3. Run scenario `11_GPSUpdate`. If your controller crashes immediately do not panic. Flying from an estimated state (even with ideal sensors) is very different from flying with ideal pose. You may need to de-tune your controller. Decrease the position and velocity gains (we’ve seen about 30% detuning being effective) to stabilize it.  Your goal is to once again complete the entire simulation cycle with an estimated position error of < 1m.
-
-**Hint: you may find it easiest to do your de-tuning as a 2 step process by reverting to ideal sensors and de-tuning under those conditions first.**
-
-***Success criteria:*** *Your objective is to complete the entire simulation cycle with estimated position error of < 1m.*
+`QuadController.cpp` and `QuadControlParams.txt` were replaced with the ones developed in the controller project. Running scenario `11_GPSUpdate` initially produced some very erratic behavior (a lot of uneccesary pitch and roll oscillations and sometimes a crash). The position and velocity gains were decreased by about 30% to stabilize it. The quad once again was  able to complete the entire simulation cycle with an estimated position error of < 1m. At this point I experimented further with the `z PID` gains in order to prevent the quad from making extreme changes in altitude. I spent some time making it as graceful and as smooth as possible while satisfying the original criteria. I have gain a real appreciation for just how hard  it is to make something fly gracefully.
