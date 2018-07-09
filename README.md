@@ -6,98 +6,29 @@ Welcome to the estimation project.  In this project, a simulated quad will be fl
 
 The estimator is built up in pieces.  At each step, there will be a set of success criteria that will be displayed both in the plots and in the terminal output.
 
-Project outline:
-
- - [Step 1: Sensor Noise](#step-1-sensor-noise)
- - [Step 2: Attitude Estimation](#step-2-attitude-estimation)
- - [Step 3: Prediction Step](#step-3-prediction-step)
- - [Step 4: Magnetometer Update](#step-4-magnetometer-update)
- - [Step 5: Closed Loop + GPS Update](#step-5-closed-loop--gps-update)
- - [Step 6: Adding Your Controller](#step-6-adding-your-controller)
-
-
-
 ### Determine the standard deviation of the measurement noise of both GPS X data and Accelerometer X data. ###
 
-For the controls project, the simulator was working with a perfect set of sensors, meaning none of the sensors had any noise.  The first step to adding additional realism to the problem, and developing an estimator, is adding noise to the quad's sensors.  For the first step, you will collect some simulated noisy sensor data and estimate the standard deviation of the quad's sensor.
+A quick python program was written to read the csv files `config/log/Graph1.txt` (GPS X data) and `config/log/Graph2.txt` (Accelerometer X data) using the built-in function `np.loadtxt`. A while loop was implemented to ensure that there were at least 99 GPS data points in a stored array before using the built-in `np.std` to calculate the standard deviation. I experimented with Scenario 6 to determine 99 GPS points and the corresponding number of IMU points are the maximum provided before the scenario restarts. Calculated values for `MeasuredStdDev_GPSPosXY` and `MeasuredStdDev_AccelXY` are `0.71` and `0.49`, respectively. 
 
-1. Run the simulator in the same way as you have before
+### Implement a better rate gyro attitude integration scheme in the `UpdateFromIMU()` function. ###
 
-2. Choose scenario `06_NoisySensors`.  In this simulation, the interest is to record some sensor data on a static quad, so you will not see the quad move.  You will see two plots at the bottom, one for GPS X position and one for The accelerometer's x measurement.  The dashed lines are a visualization of a single standard deviation from 0 for each signal. The standard deviations are initially set to arbitrary values (after processing the data in the next step, you will be adjusting these values).  If they were set correctly, we should see ~68% of the measurement points fall into the +/- 1 sigma bound.  When you run this scenario, the graphs you see will be recorded to the following csv files with headers: `config/log/Graph1.txt` (GPS X data) and `config/log/Graph2.txt` (Accelerometer X data).
-
-3. Process the logged files to figure out the standard deviation of the the GPS X signal and the IMU Accelerometer X signal.
-
-4. Plug in your result into the top of `config/6_Sensornoise.txt`.  Specially, set the values for `MeasuredStdDev_GPSPosXY` and `MeasuredStdDev_AccelXY` to be the values you have calculated.
-
-5. Run the simulator. If your values are correct, the dashed lines in the simulation will eventually turn green, indicating you’re capturing approx 68% of the respective measurements (which is what we expect within +/- 1 sigma bound for a Gaussian noise model)
-
-***Success criteria:*** *Your standard deviations should accurately capture the value of approximately 68% of the respective measurements.*
-
-NOTE: Your answer should match the settings in `SimulatedSensors.txt`, where you can also grab the simulated noise parameters for all the other sensors.
-
-
-### Implement a better rate gyro attitude integration scheme in the UpdateFromIMU() function. ###
-
-Now let's look at the first step to our state estimation: including information from our IMU.  In this step, you will be improving the complementary filter-type attitude filter with a better rate gyro attitude integration scheme.
-
-1. Run scenario `07_AttitudeEstimation`.  For this simulation, the only sensor used is the IMU and noise levels are set to 0 (see `config/07_AttitudeEstimation.txt` for all the settings for this simulation).  There are two plots visible in this simulation.
-   - The top graph is showing errors in each of the estimated Euler angles.
-   - The bottom shows the true Euler angles and the estimates.
-Observe that there’s quite a bit of error in attitude estimation.
-
-2. In `QuadEstimatorEKF.cpp`, you will see the function `UpdateFromIMU()` contains a complementary filter-type attitude filter.  To reduce the errors in the estimated attitude (Euler Angles), implement a better rate gyro attitude integration scheme.  You should be able to reduce the attitude errors to get within 0.1 rad for each of the Euler angles, as shown in the screenshot below.
+In Section 7.1.2 of [Estimation for Quadrotors](https://www.overleaf.com/read/vymfngphcccj) a non-linear complimentary filter for attitude using quarternions is described. It is implemented in `Lines 96-101` of `QuadEstimatorEKF.cpp` in the function `UpdateFromIMU()`. The `Quaternion<float>::FromEuler123_RPY(rollEst, pitchEst, ekfState(6))` function is used on `Line 96` to create the quarternion of the current estimated state and the following line (`q_t.IntegrateBodyRate(gyro, dtIMU)`) implements the integration using the body rate measurements from the gyro. This implementation reduced attitude errors to get within 0.1 rad for each of the Euler angles, as shown in the screenshot below.
 
 ![attitude example](images/attitude-screenshot.png)
 
 In the screenshot above the attitude estimation using linear scheme (left) and using the improved nonlinear scheme (right). Note that Y axis on error is much greater on left.
 
-***Success criteria:*** *Your attitude estimator needs to get within 0.1 rad for each of the Euler angles for at least 3 seconds.*
-
-**Hint: see section 7.1.2 of [Estimation for Quadrotors](https://www.overleaf.com/read/vymfngphcccj) for a refresher on a good non-linear complimentary filter for attitude using quaternions.**
-
-
 ### Implement all of the elements of the prediction step for the estimator. ###
 
-In this next step you will be implementing the prediction step of your filter.
-
-
-1. Run scenario `08_PredictState`.  This scenario is configured to use a perfect IMU (only an IMU). Due to the sensitivity of double-integration to attitude errors, we've made the accelerometer update very insignificant (`QuadEstimatorEKF.attitudeTau = 100`).  The plots on this simulation show element of your estimated state and that of the true state.  At the moment you should see that your estimated state does not follow the true state.
-
-2. In `QuadEstimatorEKF.cpp`, implement the state prediction step in the `PredictState()` functon. If you do it correctly, when you run scenario `08_PredictState` you should see the estimator state track the actual state, with only reasonably slow drift, as shown in the figure below:
+In `QuadEstimatorEKF.cpp`, the state prediction step in the `PredictState()` functon is implemented in `Lines 163-169`. An attitude quarternion that was created for us using the current vehicle estimated attitude is used to rotate the accelerometer measurements from body frame to inertial frame (`attitude.Rotate_BtoI(accel)`). At this point the first 6 variables of the predicted state vector are updated and gravity was accounted for when updating the vertical velocity. Scenario `08_PredictState` will then show the estimator state track the actual state, with only reasonably slow drift, as shown in the figure below:
 
 ![predict drift](images/predict-slow-drift.png)
 
-3. Now let's introduce a realistic IMU, one with noise.  Run scenario `09_PredictionCov`. You will see a small fleet of quadcopter all using your prediction code to integrate forward. You will see two plots:
-   - The top graph shows 10 (prediction-only) position X estimates
-   - The bottom graph shows 10 (prediction-only) velocity estimates
-You will notice however that the estimated covariance (white bounds) currently do not capture the growing errors.
-
-4. In `QuadEstimatorEKF.cpp`, calculate the partial derivative of the body-to-global rotation matrix in the function `GetRbgPrime()`.  Once you have that function implement, implement the rest of the prediction step (predict the state covariance forward) in `Predict()`.
-
-**Hint: see section 7.2 of [Estimation for Quadrotors](https://www.overleaf.com/read/vymfngphcccj) for a refresher on the the transition model and the partial derivatives you may need**
-
-**Hint: When it comes to writing the function for GetRbgPrime, make sure to triple check you've set all the correct parts of the matrix.**
-
-**Hint: recall that the control input is the acceleration!**
-
-5. Run your covariance prediction and tune the `QPosXYStd` and the `QVelXYStd` process parameters in `QuadEstimatorEKF.txt` to try to capture the magnitude of the error you see. Note that as error grows our simplified model will not capture the real error dynamics (for example, specifically, coming from attitude errors), therefore  try to make it look reasonable only for a relatively short prediction period (the scenario is set for one second).  A good solution looks as follows:
+In `QuadEstimatorEKF.cpp`, calculation for the partial derivative of the body-to-global rotation matrix in the function `GetRbgPrime()` is implemented in `Lines 195-197`. The partial derivatives were written as described in section 7.2 of [Estimation for Quadrotors](https://www.overleaf.com/read/vymfngphcccj). The state covariance is predicted forward in `Predict()` which is implemented in `Lines 243-255` in accordance with the classic EKF prediction equations. Scenario `09_PredictionCov` is then ran with `QPosXYStd = 0.1` and `QVelXYStd = 0.18` process parameters in `QuadEstimatorEKF.txt` to capture the magnitude of the error. The solution looks as follows:
 
 ![good covariance](images/predict-good-cov.png)
 
 Looking at this result, you can see that in the first part of the plot, our covariance (the white line) grows very much like the data.
-
-If we look at an example with a `QPosXYStd` that is much too high (shown below), we can see that the covariance no longer grows in the same way as the data.
-
-![bad x covariance](images/bad-x-sigma.PNG)
-
-Another set of bad examples is shown below for having a `QVelXYStd` too large (first) and too small (second).  As you can see, once again, our covariances in these cases no longer model the data well.
-
-![bad vx cov large](images/bad-vx-sigma.PNG)
-
-![bad vx cov small](images/bad-vx-sigma-low.PNG)
-
-***Success criteria:*** *This step doesn't have any specific measurable criteria being checked.*
-
 
 ### Implement the magnetometer update. ###
 
